@@ -144,64 +144,71 @@ func parseSystemInstruction(tx *solana.Transaction) *TransferInfo {
 // ------------------------
 // 🧠 核心：追踪资金 A→B→C 链路
 // ------------------------
-func TraceFlow(address solana.PublicKey, depth int, visited map[string]bool) {
-	if visited[address.String()] {
-		return // 防止循环
-	}
-	visited[address.String()] = true
+func TraceFlow(address solana.PublicKey, visited map[string]bool) {
+	const MinBalance uint64 = 100_000_000
 
-	// 读取余额
-	bal, _ := getBalance(address)
-	fmt.Printf("\n地址 %s 余额：%.9f SOL\n", address, float64(bal)/1e9)
-	const MinBalance uint64 = 100000000
-	if bal > 0 && bal > MinBalance {
-		fmt.Println("余额大于 0或者大于阈值，停止追踪。")
-		return
-	}
+	for {
+		// 读取余额
+		bal, _ := getBalance(address)
+		fmt.Printf("\n地址 %s 余额：%.9f SOL\n", address, float64(bal)/1e9)
 
-	// 获取最近 10 笔交易
-	sigs, err := getRecentSignatures(address, 10)
-	if err != nil || len(sigs) == 0 {
-		fmt.Printf("无法获取交易或没有交易。%s\n", err)
-		return
-	}
-
-	for _, sig := range sigs {
-		tx, err := fetchTransaction(sig.Signature.String())
-		if err != nil {
+		if bal > 0 && bal > MinBalance {
+			fmt.Println("余额大于 0或者大于阈值，继续轮询...")
+			// 等待 20 秒再继续检查
+			time.Sleep(20 * time.Second)
 			continue
 		}
 
-		info := parseSystemInstruction(tx)
-		if info == nil {
-			continue
+		// 获取最近 10 笔交易
+		sigs, err := getRecentSignatures(address, 10)
+		if err != nil || len(sigs) == 0 {
+			fmt.Printf("无法获取交易或没有交易。%s\n", err)
+			return
 		}
 
-		// 我们只关心 address 作为 From 的情况
-		if info.From.Equals(address) {
-			toLink := fmt.Sprintf("https://gmgn.ai/sol/address/%s", info.To)
-			fmt.Printf("路径发现：%s → %s (%.9f SOL)\n",
-				info.From, toLink, float64(info.Lamports)/1e9)
+		found := false
+		for _, sig := range sigs {
+			tx, err := fetchTransaction(sig.Signature.String())
+			if err != nil {
+				continue
+			}
 
-			SendMessage(fmt.Sprintf(
-				"路径发现：%s → %s (%.9f SOL)\n",
-				info.From, toLink, float64(info.Lamports)/1e9,
-			))
+			info := parseSystemInstruction(tx)
+			if info == nil {
+				continue
+			}
 
-			// 递归追踪 To
-			// if depth < 5 { // 最大追踪深度 5
-			time.Sleep(time.Millisecond * 300)
-			TraceFlow(info.To, depth+1, visited)
-			// }
+			if info.From.Equals(address) {
+				toLink := fmt.Sprintf("https://gmgn.ai/sol/address/%s", info.To)
+				fmt.Printf("路径发现：%s → %s (%.9f SOL)\n",
+					info.From, toLink, float64(info.Lamports)/1e9)
+
+				SendMessage(fmt.Sprintf(
+					"路径发现：%s → %s (%.9f SOL)\n",
+					info.From, toLink, float64(info.Lamports)/1e9,
+				))
+
+				// 避免递归无限循环
+				if !visited[info.To.String()] {
+					visited[info.To.String()] = true
+					time.Sleep(300 * time.Millisecond)
+					TraceFlow(info.To, visited)
+				}
+
+				found = true
+				break // 找到一次交易就处理完当前轮
+			}
+		}
+
+		if !found {
+			fmt.Println("找不到从该地址发出的转账。")
 			return
 		}
 	}
-
-	fmt.Println("找不到从该地址发出的转账。")
 }
 
 // 对外调用入口
 func StartTrace(addr string) {
 	pub := solana.MustPublicKeyFromBase58(addr)
-	TraceFlow(pub, 0, map[string]bool{})
+	TraceFlow(pub, map[string]bool{})
 }
