@@ -9,5 +9,5 @@ import (
 func main() {
 	// pumpfollow.GetPumpFollowings()
 	// close_account.GetAccount()
-	trace.GetTransaction()
+	trace.StartTrace("2PxXsX3yCqc6Q6zXHvEbNuSLYdjp7sKAvWAGK4A9Yho3")
 }
