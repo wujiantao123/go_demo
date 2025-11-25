@@ -2,12 +2,19 @@ package trace
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
 )
+
+type TransferInfo struct {
+	From     solana.PublicKey
+	To       solana.PublicKey
+	Lamports uint64
+}
 
 // RPC池
 var rpcList = []string{
@@ -46,36 +53,37 @@ func fetchTransaction(sig string) (*rpc.GetTransactionResult, string, error) {
 	}
 	return nil, "", fmt.Errorf("all RPC failed")
 }
-func parseSystemInstructions(tx *solana.Transaction) {
-	for i, ix := range tx.Message.Instructions {
+
+func parseSystemInstructions(tx *solana.Transaction) *TransferInfo {
+	for _, ix := range tx.Message.Instructions {
+
+		// 不是 system program → 跳过
 		if !tx.Message.AccountKeys[ix.ProgramIDIndex].Equals(system.ProgramID) {
 			continue
 		}
 
-		// Parse system transfer instruction manually
+		// System Transfer 指令
+		// ix.Data[0] == 2 说明是 transfer
 		if len(ix.Data) >= 12 && ix.Data[0] == 2 && len(ix.Accounts) >= 2 {
-			// System transfer instruction (instruction type 2)
+
 			from := tx.Message.AccountKeys[ix.Accounts[0]]
 			to := tx.Message.AccountKeys[ix.Accounts[1]]
 
-			// Extract lamports from instruction data (bytes 4-12)
-			lamports := uint64(ix.Data[4]) |
-				uint64(ix.Data[5])<<8 |
-				uint64(ix.Data[6])<<16 |
-				uint64(ix.Data[7])<<24 |
-				uint64(ix.Data[8])<<32 |
-				uint64(ix.Data[9])<<40 |
-				uint64(ix.Data[10])<<48 |
-				uint64(ix.Data[11])<<56
+			// lamports = u64，从 byte 4 开始连续 8 字节
+			lamports := binary.LittleEndian.Uint64(ix.Data[4:12])
 
-			fmt.Printf("转账 #%d\n", i)
-			fmt.Printf("  From  : %s\n", from)
-			fmt.Printf("  To    : %s\n", to)
-			fmt.Printf("  Amount: %d Lamports (%.9f SOL)\n\n",
-				lamports, float64(lamports)/1e9)
+			return &TransferInfo{
+				From:     from,
+				To:       to,
+				Lamports: lamports,
+			}
 		}
 	}
+
+	// 如果没有转账指令 → 返回 nil
+	return nil
 }
+
 func GetTransaction() {
 	sig := "VwyR57Y3ELc7C5AMTaQ3kfkZjMnFkmEXwvtFkNKF2DZwisP3LHcDJhkqkVCb3q9eLrP9NUXwse2VSGYxk6agu6E"
 
@@ -93,5 +101,12 @@ func GetTransaction() {
 	}
 	// 解析这笔交易看是否为转账
 	fmt.Printf("Transaction: %+v\n", transaction)
-	parseSystemInstructions(transaction)
+	info := parseSystemInstructions(transaction)
+	if info != nil {
+		fmt.Println("发生转账：")
+		fmt.Println("From:", info.From)
+		fmt.Println("To:", info.To)
+		fmt.Printf("Amount: %d (%.9f SOL)\n",
+			info.Lamports, float64(info.Lamports)/1e9)
+	}
 }
