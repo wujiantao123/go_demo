@@ -12,7 +12,7 @@ import (
 func RunStream() {
 
 	clientConfig := laserstream.LaserstreamConfig{
-		Endpoint: "http://84.32.103.140:10030",
+		Endpoint: "84.32.103.140:10030",
 	}
 
 	commitment := laserstream.CommitmentLevel_PROCESSED
