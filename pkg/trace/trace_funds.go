@@ -12,9 +12,11 @@ import (
 )
 
 type TransferInfo struct {
-	From     solana.PublicKey
-	To       solana.PublicKey
-	Lamports uint64
+	From      solana.PublicKey
+	To        solana.PublicKey
+	Lamports  uint64
+	Kind      string // transfer / withdraw-nonce
+	Authority solana.PublicKey
 }
 
 // RPC list
@@ -122,22 +124,62 @@ func fetchTransaction(sig string) (*solana.Transaction, error) {
 func parseSystemInstruction(tx *solana.Transaction) *TransferInfo {
 	for _, ix := range tx.Message.Instructions {
 
+		// 不是 SystemProgram 跳过
 		if !tx.Message.AccountKeys[ix.ProgramIDIndex].Equals(system.ProgramID) {
 			continue
 		}
 
-		if len(ix.Data) >= 12 && ix.Data[0] == 2 && len(ix.Accounts) >= 2 {
-			from := tx.Message.AccountKeys[ix.Accounts[0]]
-			to := tx.Message.AccountKeys[ix.Accounts[1]]
-			lamports := binary.LittleEndian.Uint64(ix.Data[4:12])
+		// Data 至少要有 1 byte 指令 index
+		if len(ix.Data) < 1 {
+			continue
+		}
 
-			return &TransferInfo{
-				From:     from,
-				To:       to,
-				Lamports: lamports,
+		instr := ix.Data[0]
+
+		switch instr {
+
+		// -------------------------------------------------------
+		// SystemInstruction::Transfer = 2
+		// -------------------------------------------------------
+		case 2:
+			if len(ix.Data) >= 12 && len(ix.Accounts) >= 2 {
+
+				from := tx.Message.AccountKeys[ix.Accounts[0]]
+				to := tx.Message.AccountKeys[ix.Accounts[1]]
+				lamports := binary.LittleEndian.Uint64(ix.Data[4:12])
+
+				return &TransferInfo{
+					From:     from,
+					To:       to,
+					Lamports: lamports,
+					Kind:     "transfer",
+				}
+			}
+
+		// -------------------------------------------------------
+		// SystemInstruction::WithdrawNonceAccount = 7
+		// -------------------------------------------------------
+		case 5:
+			// WithdrawNonceAccount 结构最少要求 5 个 account
+			if len(ix.Data) >= 9 && len(ix.Accounts) >= 5 {
+
+				nonceAccount := tx.Message.AccountKeys[ix.Accounts[0]]
+				recipient := tx.Message.AccountKeys[ix.Accounts[1]]
+				authority := tx.Message.AccountKeys[ix.Accounts[4]]
+
+				lamports := binary.LittleEndian.Uint64(ix.Data[1:9])
+
+				return &TransferInfo{
+					From:      nonceAccount,
+					To:        recipient,
+					Lamports:  lamports,
+					Kind:      "withdraw-nonce",
+					Authority: authority,
+				}
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -172,11 +214,13 @@ func TraceFlow(address solana.PublicKey, visited map[string]bool) {
 			if err != nil {
 				continue
 			}
-
 			info := parseSystemInstruction(tx)
+			fmt.Println("转账信息：", info)
+			fmt.Println("检查地址：", address.String())
 			if info == nil {
 				continue
 			}
+			fmt.Printf("路径发现：%s → %s (%.9f SOL)\n", info.From, info.To, float64(info.Lamports)/1e9)
 
 			if info.From.Equals(address) {
 				toLink := fmt.Sprintf("https://gmgn.ai/sol/address/%s", info.To)
@@ -211,4 +255,12 @@ func TraceFlow(address solana.PublicKey, visited map[string]bool) {
 func StartTrace(addr string) {
 	pub := solana.MustPublicKeyFromBase58(addr)
 	TraceFlow(pub, map[string]bool{})
+}
+
+func GetTransaction(sig string) (*solana.Transaction, error) {
+	tx, err := fetchTransaction(sig)
+	fmt.Println("交易：", tx)
+	info := parseSystemInstruction(tx)
+	fmt.Println("转账信息：", info)
+	return tx, err
 }

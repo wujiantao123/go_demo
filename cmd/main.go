@@ -1,13 +1,19 @@
 package main
 
 import (
-	// pumpfollow "go_demo/pkg"
-	// close_account "go_demo/pkg/close_account"
-	trace "go_demo/pkg/trace"
+	stream "go_demo/pkg/stream"
+	"os"
+	"os/signal"
+	"syscall"
+	// trace "go_demo/pkg/trace"
 )
 
 func main() {
-	// pumpfollow.GetPumpFollowings()
-	// close_account.GetAccount()
-	trace.StartTrace("2PxXsX3yCqc6Q6zXHvEbNuSLYdjp7sKAvWAGK4A9Yho3")
+	go stream.RunStream()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	<-sig
+
+	println("Exiting...")
 }
