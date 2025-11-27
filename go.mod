@@ -5,12 +5,12 @@ go 1.25.4
 require github.com/gagliardetto/solana-go v1.14.0
 
 require (
-	github.com/helius-labs/laserstream-sdk/go v0.0.9 // indirect
-	github.com/rpcpool/yellowstone-grpc/examples/golang v0.0.0-20250409203454-bb3a44a2f723 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/rpcpool/yellowstone-grpc/examples/golang v0.0.0-20251116114257-810ac8e16ce5 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
-	google.golang.org/grpc v1.71.1 // indirect
+	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
 

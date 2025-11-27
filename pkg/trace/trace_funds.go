@@ -122,6 +122,10 @@ func fetchTransaction(sig string) (*solana.Transaction, error) {
 
 // 解析系统转账
 func parseSystemInstruction(tx *solana.Transaction) *TransferInfo {
+	if len(tx.Signatures) > 1 {
+		fmt.Println("多签交易，跳过解析")
+		return nil
+	}
 	for _, ix := range tx.Message.Instructions {
 
 		// 不是 SystemProgram 跳过
