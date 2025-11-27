@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ func RunStream() {
 	clientConfig := laserstream.LaserstreamConfig{
 		Endpoint: "84.32.103.140:10030",
 	}
+	fmt.Println("Starting stream subscription...", clientConfig.Endpoint)
 
 	commitment := laserstream.CommitmentLevel_PROCESSED
 
