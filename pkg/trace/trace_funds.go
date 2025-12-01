@@ -202,7 +202,7 @@ func TraceFlow(address solana.PublicKey, visited map[string]bool, remark string)
 	for {
 		// 读取余额
 		bal, _ := getBalance(address)
-		fmt.Printf("\n地址 %s 余额：%.9f SOL\n", address, float64(bal)/1e9)
+		fmt.Printf("\n备注 %s 地址 %s 余额：%.9f SOL\n", remark, address, float64(bal)/1e9)
 
 		if bal > 0 && bal > MinBalance {
 			fmt.Println("余额大于 0或者大于阈值，继续轮询...")
