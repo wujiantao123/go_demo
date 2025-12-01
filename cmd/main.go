@@ -9,7 +9,7 @@ import (
 
 func main() {
 
-	go trace.StartTrace([]string{"FLGFLysu3CLmztjxzS5dUq9g1nkcZ1gFULZudWGaTxNM", "6Te6gGSsJLa8Gwo5k5kZeJjA5hfuceU5e2FKcvnPoxPG"})
+	go trace.StartTrace([]string{"6Te6gGSsJLa8Gwo5k5kZeJjA5hfuceU5e2FKcvnPoxPG"})
 	// go stream.Subscribe()
 
 	sig := make(chan os.Signal, 1)
