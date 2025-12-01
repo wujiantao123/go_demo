@@ -19,6 +19,12 @@ type TransferInfo struct {
 	Authority solana.PublicKey
 }
 
+// TraceConfig 追踪配置，包含地址和备注
+type TraceConfig struct {
+	Address string // 地址
+	Remark  string // 备注
+}
+
 // RPC list
 var rpcList = []string{
 	"https://mainnet.helius-rpc.com/?api-key=8b7d781c-41a4-464a-9c28-d243fa4b4490",
@@ -190,7 +196,7 @@ func parseSystemInstruction(tx *solana.Transaction) *TransferInfo {
 // ------------------------
 // 🧠 核心：追踪资金 A→B→C 链路
 // ------------------------
-func TraceFlow(address solana.PublicKey, visited map[string]bool) {
+func TraceFlow(address solana.PublicKey, visited map[string]bool, remark string) {
 	const MinBalance uint64 = 100_000_000
 
 	for {
@@ -231,16 +237,18 @@ func TraceFlow(address solana.PublicKey, visited map[string]bool) {
 				fmt.Printf("路径发现：%s → %s (%.9f SOL)\n",
 					info.From, toLink, float64(info.Lamports)/1e9)
 
-				SendMessage(fmt.Sprintf(
-					"路径发现：%s → %s (%.9f SOL)\n",
-					info.From, toLink, float64(info.Lamports)/1e9,
-				))
+				// 发送消息时带上备注
+				message := fmt.Sprintf(
+					"[%s] 路径发现：%s → %s (%.9f SOL)\n",
+					remark, info.From, toLink, float64(info.Lamports)/1e9,
+				)
+				SendMessage(message)
 
 				// 避免递归无限循环
 				if !visited[info.To.String()] {
 					visited[info.To.String()] = true
 					time.Sleep(300 * time.Millisecond)
-					TraceFlow(info.To, visited)
+					TraceFlow(info.To, visited, remark)
 				}
 
 				found = true
@@ -256,10 +264,10 @@ func TraceFlow(address solana.PublicKey, visited map[string]bool) {
 }
 
 // 对外调用入口
-func StartTrace(addrs []string) {
-	for _, addr := range addrs {
-		pub := solana.MustPublicKeyFromBase58(addr)
-		go TraceFlow(pub, map[string]bool{})
+func StartTrace(configs []TraceConfig) {
+	for _, config := range configs {
+		pub := solana.MustPublicKeyFromBase58(config.Address)
+		go TraceFlow(pub, map[string]bool{}, config.Remark)
 	}
 }
 
