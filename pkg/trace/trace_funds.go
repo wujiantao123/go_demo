@@ -256,9 +256,11 @@ func TraceFlow(address solana.PublicKey, visited map[string]bool) {
 }
 
 // 对外调用入口
-func StartTrace(addr string) {
-	pub := solana.MustPublicKeyFromBase58(addr)
-	TraceFlow(pub, map[string]bool{})
+func StartTrace(addrs []string) {
+	for _, addr := range addrs {
+		pub := solana.MustPublicKeyFromBase58(addr)
+		go TraceFlow(pub, map[string]bool{})
+	}
 }
 
 func GetTransaction(sig string) (*solana.Transaction, error) {
