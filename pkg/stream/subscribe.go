@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"go_demo/pkg/storage"
+	"go_demo/pkg/trace"
+
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	pb "github.com/rpcpool/yellowstone-grpc/examples/golang/proto"
@@ -88,9 +91,9 @@ func (c *YellowstoneGrpcClient) SubscribeTransactions(accounts []string) (*Trans
 	req := &pb.SubscribeRequest{
 		Transactions: map[string]*pb.SubscribeRequestFilterTransactions{
 			"transactions_sub": {
-				Failed:         &failedTransactions,
-				Vote:           &voteTransactions,
-				AccountInclude: accounts,
+				Failed:          &failedTransactions,
+				Vote:            &voteTransactions,
+				AccountRequired: accounts,
 			},
 		},
 	}
@@ -291,6 +294,76 @@ func Subscribe() {
 					)
 				}
 
+			}
+		}
+	}
+}
+
+// SubscribeFilteredTransactions 订阅并过滤交易
+func SubscribeFilteredTransactions() {
+	// 目标地址
+	targetAddresses := []solana.PublicKey{
+		solana.MustPublicKeyFromBase58("b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1"),
+		solana.MustPublicKeyFromBase58("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM"),
+	}
+	minGasFeeSOL := 0.05
+
+	client := NewYellowstoneGrpcClient("84.32.103.140:10030")
+	defer client.Close()
+
+	storagePath := storage.GetStoragePath()
+	log.Printf("开始监听交易，符合条件的将保存到: %s", storagePath)
+
+	for {
+		// 建立流 - 如果 gRPC 端已经过滤了这两个地址，可以传入
+		accountsFilter := []string{
+			"b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1",
+			"CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM",
+		}
+		txStream, err := client.SubscribeTransactions(accountsFilter)
+		if err != nil {
+			log.Printf("SubscribeTransactions error: %v, retry in 3s...", err)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		log.Println("Subscribed to transaction stream")
+
+		for {
+			update, err := txStream.Recv()
+			if err != nil {
+				log.Printf("Error receiving transaction: %v, reconnecting in 3s...", err)
+				time.Sleep(3 * time.Second)
+				break
+			}
+
+			transaction, ok := update.UpdateOneof.(*pb.SubscribeUpdate_Transaction)
+			if !ok {
+				continue
+			}
+
+			isValid, txInfo, err := trace.CheckTransactionFromGrpc(transaction.Transaction, targetAddresses, minGasFeeSOL)
+			if err != nil {
+				log.Printf("检查交易失败: %v", err)
+				continue
+			}
+
+			if isValid && txInfo != nil {
+				log.Printf("✅ 找到符合条件的交易: %s, Gas Fee: %.9f SOL", txInfo.Signature, txInfo.GasFeeSOL)
+
+				// 保存到文件
+				filteredTx := &storage.FilteredTransaction{
+					Signature: txInfo.Signature,
+					Timestamp: time.Now().Unix(),
+					GasFee:    txInfo.GasFee,
+					GasFeeSOL: txInfo.GasFeeSOL,
+					Address:   txInfo.Address,
+				}
+
+				if err := storage.SaveFilteredTransaction(filteredTx, storagePath); err != nil {
+					log.Printf("保存交易失败 %s: %v", txInfo.Signature, err)
+				} else {
+					log.Printf("已保存交易: %s", txInfo.Signature)
+				}
 			}
 		}
 	}

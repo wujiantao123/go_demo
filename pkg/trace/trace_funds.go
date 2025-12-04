@@ -9,6 +9,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
 	"github.com/gagliardetto/solana-go/rpc"
+	pb "github.com/rpcpool/yellowstone-grpc/examples/golang/proto"
 )
 
 type TransferInfo struct {
@@ -126,6 +127,29 @@ func fetchTransaction(sig string) (*solana.Transaction, error) {
 	return nil, fmt.Errorf("无法获取交易")
 }
 
+// 获取完整交易结果（包含 fee 等元数据）
+func fetchTransactionResult(sig string) (*rpc.GetTransactionResult, error) {
+	version := uint64(0)
+
+	for _, c := range rpcClients {
+		tx, err := c.GetTransaction(
+			context.Background(),
+			solana.MustSignatureFromBase58(sig),
+			&rpc.GetTransactionOpts{
+				Commitment:                     rpc.CommitmentConfirmed,
+				Encoding:                       solana.EncodingBase64,
+				MaxSupportedTransactionVersion: &version,
+			},
+		)
+
+		if err == nil && tx != nil {
+			return tx, nil
+		}
+		fmt.Println("RPC 获取交易失败：", err)
+	}
+	return nil, fmt.Errorf("无法获取交易")
+}
+
 // 解析系统转账
 func parseSystemInstruction(tx *solana.Transaction) *TransferInfo {
 	if len(tx.Signatures) > 1 {
@@ -145,7 +169,7 @@ func parseSystemInstruction(tx *solana.Transaction) *TransferInfo {
 		}
 
 		instr := ix.Data[0]
-
+		fmt.Println("instr:", instr)
 		switch instr {
 
 		// -------------------------------------------------------
@@ -271,10 +295,244 @@ func StartTrace(configs []TraceConfig) {
 	}
 }
 
+// 检查交易是否包含指定地址
+func containsAddress(tx *solana.Transaction, targetAddr solana.PublicKey) bool {
+	if tx == nil {
+		return false
+	}
+
+	// 检查所有账户密钥
+	for _, key := range tx.Message.AccountKeys {
+		if key.Equals(targetAddr) {
+			return true
+		}
+	}
+
+	// 签名者通常是第一个账户
+	if len(tx.Message.AccountKeys) > 0 {
+		signer := tx.Message.AccountKeys[0]
+		if signer.Equals(targetAddr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// 检查是否是 meme 交易（涉及指定的 token mint）
+func isMemeTransaction(tx *solana.Transaction, memeMint solana.PublicKey) bool {
+	if tx == nil {
+		return false
+	}
+
+	// 检查所有账户密钥中是否包含 meme mint 地址
+	for _, key := range tx.Message.AccountKeys {
+		if key.Equals(memeMint) {
+			return true
+		}
+	}
+
+	// 检查指令中的账户
+	for _, ix := range tx.Message.Instructions {
+		for _, accIdx := range ix.Accounts {
+			if int(accIdx) < len(tx.Message.AccountKeys) {
+				if tx.Message.AccountKeys[accIdx].Equals(memeMint) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// 获取交易的 gas fee
+func getTransactionFee(txResult *rpc.GetTransactionResult) uint64 {
+	if txResult == nil || txResult.Meta == nil {
+		return 0
+	}
+	return txResult.Meta.Fee
+}
+
+// MemeTransactionInfo meme 交易信息
+type MemeTransactionInfo struct {
+	Signature     string
+	ContainsB1oom bool
+	IsMemeTx      bool
+	GasFee        uint64
+	GasFeeSOL     float64
+	Transaction   *solana.Transaction
+}
+
+// AnalyzeMemeTransaction 分析交易是否包含指定地址且是 meme 交易
+func AnalyzeMemeTransaction(sig string) (*MemeTransactionInfo, error) {
+	// 目标地址
+	b1oomAddr := solana.MustPublicKeyFromBase58("b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1")
+	// Meme token mint 地址
+	memeMint := solana.MustPublicKeyFromBase58("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM")
+
+	// 获取交易结果（包含 fee）
+	txResult, err := fetchTransactionResult(sig)
+	if err != nil {
+		return nil, fmt.Errorf("获取交易失败: %v", err)
+	}
+
+	if txResult.Transaction == nil {
+		return nil, fmt.Errorf("交易数据为空")
+	}
+
+	tx, err := txResult.Transaction.GetTransaction()
+	if err != nil {
+		return nil, fmt.Errorf("解析交易失败: %v", err)
+	}
+
+	// 检查是否包含 b1oom 地址
+	containsB1oom := containsAddress(tx, b1oomAddr)
+
+	// 检查是否是 meme 交易
+	isMemeTx := isMemeTransaction(tx, memeMint)
+
+	// 获取 gas fee
+	gasFee := getTransactionFee(txResult)
+
+	info := &MemeTransactionInfo{
+		Signature:     sig,
+		ContainsB1oom: containsB1oom,
+		IsMemeTx:      isMemeTx,
+		GasFee:        gasFee,
+		GasFeeSOL:     float64(gasFee) / 1e9,
+		Transaction:   tx,
+	}
+
+	return info, nil
+}
+
 func GetTransaction(sig string) (*solana.Transaction, error) {
 	tx, err := fetchTransaction(sig)
-	fmt.Println("交易：", tx)
+	// fmt.Println("交易：", tx)
 	info := parseSystemInstruction(tx)
 	fmt.Println("转账信息：", info)
 	return tx, err
+}
+
+// containsAllAddresses 检查交易是否同时包含所有指定的地址
+func containsAllAddresses(tx *solana.Transaction, targetAddresses []solana.PublicKey) bool {
+	if tx == nil || len(targetAddresses) == 0 {
+		return false
+	}
+
+	// 将交易中的所有地址转为 map 以便快速查找
+	addressMap := make(map[string]bool)
+	for _, key := range tx.Message.AccountKeys {
+		addressMap[key.String()] = true
+	}
+
+	// 检查指令中的账户
+	for _, ix := range tx.Message.Instructions {
+		for _, accIdx := range ix.Accounts {
+			if int(accIdx) < len(tx.Message.AccountKeys) {
+				addressMap[tx.Message.AccountKeys[accIdx].String()] = true
+			}
+		}
+	}
+
+	// 检查是否包含所有目标地址
+	for _, targetAddr := range targetAddresses {
+		if !addressMap[targetAddr.String()] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// FilteredTransactionInfo 过滤后的交易信息（用于内部传递）
+type FilteredTransactionInfo struct {
+	Signature string
+	GasFee    uint64
+	GasFeeSOL float64
+	Address   string
+}
+
+// getGasFeeFromSignature 通过签名获取交易的 gas fee
+func getGasFeeFromSignature(sig string) (uint64, error) {
+	txResult, err := fetchTransactionResult(sig)
+	if err != nil {
+		return 0, err
+	}
+	return getTransactionFee(txResult), nil
+}
+
+// CheckTransactionFromGrpc 直接从 gRPC 交易信息中检查交易是否符合条件
+func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddresses []solana.PublicKey, minGasFeeSOL float64) (bool, *FilteredTransactionInfo, error) {
+	if txnInfo == nil || txnInfo.Transaction == nil {
+		return false, nil, nil
+	}
+
+	pbTx := txnInfo.Transaction.Transaction
+	if pbTx == nil || pbTx.Message == nil {
+		return false, nil, nil
+	}
+
+	// 获取签名
+	if len(pbTx.Signatures) == 0 {
+		return false, nil, nil
+	}
+	signature := solana.SignatureFromBytes(pbTx.Signatures[0])
+	sigStr := signature.String()
+
+	var accountKeys []solana.PublicKey
+	for _, keyBytes := range pbTx.Message.AccountKeys {
+		accountKeys = append(accountKeys, solana.PublicKeyFromBytes(keyBytes))
+	}
+
+	// 构建地址映射以检查是否包含所有目标地址
+	addressMap := make(map[string]bool)
+	for _, key := range accountKeys {
+		addressMap[key.String()] = true
+	}
+	fmt.Printf("交易 %s \n", sigStr)
+
+	// 检查指令中的账户
+	for _, ix := range pbTx.Message.Instructions {
+		for _, accIdx := range ix.Accounts {
+			if int(accIdx) < len(accountKeys) {
+				addressMap[accountKeys[accIdx].String()] = true
+			}
+		}
+	}
+
+	// 检查是否包含所有目标地址
+	for _, targetAddr := range targetAddresses {
+		if !addressMap[targetAddr.String()] {
+			return false, nil, nil
+		}
+	}
+
+	// 获取 gas fee - 从 gRPC 消息的 Meta 中获取，如果没有则通过 RPC 查询
+	var gasFee uint64
+	if txnInfo.Transaction != nil && txnInfo.Transaction.Meta != nil {
+		gasFee = txnInfo.Transaction.Meta.Fee
+	} else {
+		// 如果没有 fee 信息，通过 RPC 查询
+		var err error
+		gasFee, err = getGasFeeFromSignature(sigStr)
+		if err != nil {
+			return false, nil, fmt.Errorf("获取 gas fee 失败: %v", err)
+		}
+	}
+
+	gasFeeSOL := float64(gasFee) / 1e9
+	if gasFeeSOL <= minGasFeeSOL {
+		return false, nil, nil
+	}
+
+	info := &FilteredTransactionInfo{
+		Signature: sigStr,
+		GasFee:    gasFee,
+		GasFeeSOL: gasFeeSOL,
+		Address:   accountKeys[0].String(),
+	}
+
+	return true, info, nil
 }
