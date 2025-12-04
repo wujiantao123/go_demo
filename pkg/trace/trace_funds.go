@@ -491,7 +491,13 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 	for _, key := range accountKeys {
 		addressMap[key.String()] = true
 	}
-	fmt.Printf("交易 %s \n", sigStr)
+	// 获取 gas fee - 从 gRPC 消息的 Meta 中获取，如果没有则通过 RPC 查询
+	var gasFee uint64
+	if txnInfo.Transaction != nil && txnInfo.Transaction.Meta != nil {
+		gasFee = txnInfo.Transaction.Meta.Fee
+	}
+	gasFeeSOL := float64(gasFee) / 1e9
+	fmt.Printf("gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
 
 	// 检查指令中的账户
 	for _, ix := range pbTx.Message.Instructions {
@@ -509,20 +515,6 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 		}
 	}
 
-	// 获取 gas fee - 从 gRPC 消息的 Meta 中获取，如果没有则通过 RPC 查询
-	var gasFee uint64
-	if txnInfo.Transaction != nil && txnInfo.Transaction.Meta != nil {
-		gasFee = txnInfo.Transaction.Meta.Fee
-	} else {
-		// 如果没有 fee 信息，通过 RPC 查询
-		var err error
-		gasFee, err = getGasFeeFromSignature(sigStr)
-		if err != nil {
-			return false, nil, fmt.Errorf("获取 gas fee 失败: %v", err)
-		}
-	}
-
-	gasFeeSOL := float64(gasFee) / 1e9
 	if gasFeeSOL <= minGasFeeSOL {
 		return false, nil, nil
 	}
