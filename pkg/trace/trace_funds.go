@@ -517,14 +517,7 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 		}
 	}
 
-	// 检查是否包含所有目标地址
-	for _, targetAddr := range targetAddresses {
-		if !addressMap[targetAddr.String()] {
-			return false, nil, nil
-		}
-	}
-
-	if gasFeeSOL <= minGasFeeSOL {
+	if gasFeeSOL < minGasFeeSOL {
 		return false, nil, nil
 	}
 
