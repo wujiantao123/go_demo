@@ -491,15 +491,12 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 	addressMap := make(map[string]bool)
 	found := false
 
-	for index, key := range accountKeys {
+	for _, key := range accountKeys {
 		addressMap[key.String()] = true
-		fmt.Println("index:", index, "key:", key.String())
 		if strings.Contains(strings.ToLower(key.String()), "akbotpro") {
 			fmt.Printf("AkBotPro -> 交易签名 %s \n", sigStr)
 			found = true
 			break
-		} else {
-			fmt.Printf("其他地址 -> %s\n", key.String())
 		}
 	}
 
