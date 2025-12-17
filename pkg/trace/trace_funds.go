@@ -489,8 +489,15 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 
 	// 构建地址映射以检查是否包含所有目标地址
 	addressMap := make(map[string]bool)
-	for _, key := range accountKeys {
+	for index, key := range accountKeys {
 		addressMap[key.String()] = true
+		fmt.Println("key:", key.String(), "index:", index)
+		if strings.Contains(key.String(), "AkBotPro") {
+			fmt.Printf("AkBotPro -> 交易签名 %s \n", sigStr)
+		} else {
+			fmt.Printf("其他地址 -> 交易签名 %s \n", sigStr)
+			return false, nil, nil
+		}
 	}
 	// 获取 gas fee - 从 gRPC 消息的 Meta 中获取，如果没有则通过 RPC 查询
 	var gasFee uint64
@@ -498,15 +505,6 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 		gasFee = txnInfo.Transaction.Meta.Fee
 	}
 	gasFeeSOL := float64(gasFee) / 1e9
-	for _, key := range accountKeys {
-		fmt.Println("key:", key.String())
-		if strings.Contains(key.String(), "AkBotPro") {
-			fmt.Printf("AkBotPro -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
-		} else {
-			fmt.Printf("其他地址 -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
-			return false, nil, nil
-		}
-	}
 
 	// 检查指令中的账户
 	for _, ix := range pbTx.Message.Instructions {
