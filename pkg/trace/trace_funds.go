@@ -499,9 +499,11 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 	}
 	gasFeeSOL := float64(gasFee) / 1e9
 	for _, key := range accountKeys {
+		fmt.Println("key:", key.String())
 		if strings.Contains(key.String(), "AkBotPro") {
 			fmt.Printf("AkBotPro -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
 		} else {
+			fmt.Printf("其他地址 -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
 			return false, nil, nil
 		}
 	}
