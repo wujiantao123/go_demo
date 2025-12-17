@@ -303,10 +303,10 @@ func Subscribe() {
 func SubscribeFilteredTransactions() {
 	// 目标地址
 	targetAddresses := []solana.PublicKey{
-		solana.MustPublicKeyFromBase58("b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1"),
-		solana.MustPublicKeyFromBase58("3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A"),
+		// solana.MustPublicKeyFromBase58("b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1"),
+		// solana.MustPublicKeyFromBase58("3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A"),
 	}
-	minGasFeeSOL := 0.01
+	minGasFeeSOL := 0.001
 
 	client := NewYellowstoneGrpcClient("84.32.103.140:10030")
 	defer client.Close()
@@ -317,8 +317,9 @@ func SubscribeFilteredTransactions() {
 	for {
 		// 建立流 - 如果 gRPC 端已经过滤了这两个地址，可以传入
 		accountsFilter := []string{
-			"b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1",
-			"3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A",
+			"6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+			// "b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1",
+			// "3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A",
 		}
 		txStream, err := client.SubscribeTransactions(accountsFilter)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
@@ -497,15 +498,12 @@ func CheckTransactionFromGrpc(txnInfo *pb.SubscribeUpdateTransaction, targetAddr
 		gasFee = txnInfo.Transaction.Meta.Fee
 	}
 	gasFeeSOL := float64(gasFee) / 1e9
-	// "3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A" mevx地址
-	// "b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1" b1oom地址
-	if addressMap["b1oomGGqPKGD6errbyfbVMBuzSC8WtAAYo8MwNafWW1"] {
-		fmt.Printf("Bloom -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
-	} else if addressMap["3kxSQybWEeQZsMuNWMRJH4TxrhwoDwfv41TNMLRzFP5A"] {
-		fmt.Printf("Mevx -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
-	} else {
-		fmt.Printf("其他地址 -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
-		return false, nil, nil
+	for _, key := range accountKeys {
+		if strings.Contains(key.String(), "AkBotPro") {
+			fmt.Printf("AkBotPro -> gasFee %.9f 交易 %s \n", gasFeeSOL, sigStr)
+		} else {
+			return false, nil, nil
+		}
 	}
 
 	// 检查指令中的账户
