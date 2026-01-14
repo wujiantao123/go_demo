@@ -44,6 +44,11 @@ func init() {
 	}
 }
 
+// GetRPCClients 返回 RPC 客户端列表，供其他包使用
+func GetRPCClients() []*rpc.Client {
+	return rpcClients
+}
+
 // 获取余额
 func getBalance(addr solana.PublicKey) (uint64, error) {
 	for _, c := range rpcClients {
