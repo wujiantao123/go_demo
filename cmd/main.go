@@ -1,20 +1,37 @@
+// package main
+
+// import (
+// 	get_dev_address "go_demo/pkg/get_dev_address"
+// )
+
+// func main() {
+// 	get_dev_address.AddCopyAddress()
+// 	// go stream.SubscribeFilteredTransactions()
+// 	// go checkholding.StartCheckHolding()
+// 	// // 等待退出信号
+// 	// sig := make(chan os.Signal, 1)
+// 	// signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+// 	// <-sig
+
+// 	// println("Exiting...")
+// }
+
 package main
 
 import (
-	"os"
-	"os/signal"
-	"syscall"
-
-	stream "go_demo/pkg/stream"
+	get_dev_address "go_demo/pkg/get_dev_address"
+	"log"
+	"time"
 )
 
 func main() {
-	go stream.SubscribeFilteredTransactions()
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
 
-	// 等待退出信号
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	<-sig
+	for {
+		log.Println("run AddCopyAddress")
+		get_dev_address.AddCopyAddress()
 
-	println("Exiting...")
+		<-ticker.C
+	}
 }
