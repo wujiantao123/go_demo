@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
 	for {

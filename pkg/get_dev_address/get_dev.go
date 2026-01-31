@@ -76,8 +76,8 @@ type GetCopyTradingListResponse struct {
 }
 
 // GetDevAddress 获取所有 dev 的地址
-func GetAddressTokenList() ([]string, error) {
-	url := "https://copy.fastradewiz.com/api/v1/address/token_pnl_list?limit=100&address=DDDDHjHoSWQ8TSZdWJnaxBaPSPUqVjKNbhJ4MhLXUDDD&sort_by=last_trade_time&sort_order=desc&holding=false&next="
+func GetAddressTokenList(address string) ([]string, error) {
+	url := fmt.Sprintf("https://copy.fastradewiz.com/api/v1/address/token_pnl_list?limit=100&address=%s&sort_by=last_trade_time&sort_order=desc&holding=false&next=", address)
 	// url := "https://copy.fastradewiz.com/api/v1/address/token_pnl_list?limit=500&address=DDDDHjHoSWQ8TSZdWJnaxBaPSPUqVjKNbhJ4MhLXUDDD&sort_by=last_trade_time&sort_order=desc&holding=false&next="
 	// url := "https://copy.fastradewiz.com/api/v1/address/token_pnl_list?limit=500&address=DDDDHjHoSWQ8TSZdWJnaxBaPSPUqVjKNbhJ4MhLXUDDD&sort_by=realized_pnl&sort_order=desc&holding=false&next="
 	token := "l87lfHJBZb5N+5Eoz1hwXzX72QWAIHzGcuZ2HXnfalaVaa4Hj5E06QIi8WVGcC9WXlpKCuR8z0dLEVwJP5JUXH89oB88BdiTs6Qe8mMMvOyqPkhaJSZLI/zKjkRJ58hPp6g5zI/KPDmAFxL6k4KddLdZVGw19rwO6tS4y7K3QNkPOjKUgVp0XjjB/FA4051uUhvwaHceFgi5vsYhG9z1WjLB9k7s0c8Mnrmp6ZO3+Ql+myq4OVhZf6Pnq8wDjT/w+yPxD+P2jEYO81biPzoXValESpcQ4Nsgpjy19tcwEWJKj8nBTR6m7owMx2uDKE88x2hEX1YySITNeygbkE8MFg=="
@@ -275,7 +275,7 @@ func AddTradewizCopyAddress(address string) error {
 		"sellAllOnTransfer": true,
 		"onlyCopyDevCreate": true,
 		"pvpAnti": true,
-		"pvpIntervalSec": 4,
+		"pvpIntervalSec": 7,
 		"pauseCopyDurationSec": 300
 	  }`,
 		tag,
@@ -597,18 +597,42 @@ func GetAKAddressList() ([]struct {
 	fmt.Printf("成功获取复制交易地址列表: %d\n", len(addresses))
 	return addresses, nil
 }
+func uniqStrings(ss ...[]string) []string {
+	seen := make(map[string]struct{})
+	res := make([]string, 0)
+
+	for _, s := range ss {
+		for _, v := range s {
+			if _, ok := seen[v]; !ok {
+				seen[v] = struct{}{}
+				res = append(res, v)
+			}
+		}
+	}
+	return res
+}
+
 func AddCopyAddress() {
-	addresses, err := GetAddressTokenList()
+	addresses, err := GetAddressTokenList("DDDDHjHoSWQ8TSZdWJnaxBaPSPUqVjKNbhJ4MhLXUDDD")
 	if err != nil {
 		panic(err)
 	}
+	addresses2, err := GetAddressTokenList("Fx1Y9fWxD27H3YHjDqegqUKrKuKLnKTaLB9tRwc8MjGe")
+	if err != nil {
+		panic(err)
+	}
+	addresses3, err := GetAddressTokenList("9e2p6ayBqbMnUiZL68L1kdZdqZqK7aHYxtUXoA3fhrXK")
+	if err != nil {
+		panic(err)
+	}
+	mergeAddresses := uniqStrings(addresses, addresses2, addresses3)
 	tradewizAddresses, err := GetTradewizCopyAddress()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("跟单有:", len(tradewizAddresses), "个地址")
 	fmt.Println("token有:", len(addresses), "个地址")
-	for _, address := range addresses {
+	for _, address := range mergeAddresses {
 		time.Sleep(500 * time.Millisecond)
 		creator, err := GetTokenDetail(address)
 		if err != nil {
